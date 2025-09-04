@@ -1,3 +1,5 @@
+mod lexer;
+
 use std::io::{
     stdin,
     BufReader,
@@ -6,6 +8,8 @@ use std::io::{
     Write
 };
 use std::fs::File;
+
+use lexer::*;
 
 const WRITE_MODE: u8 = 1 << 0;
 
@@ -21,6 +25,7 @@ fn parse_cmd(state: &mut State, cmd: &str) {
     if state.flags & WRITE_MODE == 1 {
         if cmd == "." {
             state.flags &= !WRITE_MODE;
+            state.line -= 1;
             return;
         }
         state.lines.insert(state.line, cmd.to_string());
@@ -29,38 +34,110 @@ fn parse_cmd(state: &mut State, cmd: &str) {
         return;
     }
 
-    match cmd {
-        "a" => {
-            state.flags |= WRITE_MODE;
-        },
-        "w" => {
-            let mut file = match File::create(state.file_path.as_str()) {
-                Ok(f) => f,
-                Err(_e) => {
-                    println!("?");
-                    return;
-                }
-            };
+    let mut lex = Lexer::new(cmd);
+    let mut token = lex.next();
 
-            for line in &state.lines {
-                if let Err(_e) = file.write(format!("{}\n", line).as_bytes()) {
+    while token != TokenTypes::End {
+        // Direct command (eg: l)
+        if token == TokenTypes::Word {
+            match cmd {
+                "a" => {
+                    state.flags |= WRITE_MODE;
+                },
+                "w" => {
+                    let mut file = match File::create(state.file_path.as_str()) {
+                        Ok(f) => f,
+                        Err(_e) => {
+                            println!("?");
+                            return;
+                        }
+                    };
+
+                    for line in &state.lines {
+                        if let Err(_e) = file.write(format!("{}\n", line).as_bytes()) {
+                            println!("?");
+                            return;
+                        }
+                    }
+                    println!("{}", state.bytes);
+                },
+                "l" => {
+                    println!("{}$", state.lines[state.line]);
+                },
+                _ => {
                     println!("?");
-                    return;
                 }
             }
-            println!("{}", state.bytes);
-        },
-        "l" => {
-            println!("{}$", state.lines[state.line]);
-        },
-        ",l" => {
-            for line in &state.lines {
-                println!("{}$", line);
-            }
-        },
-        _ => {
-            println!("?");
         }
+
+        // Half range (eg: ,l ,2l)
+        else if token == TokenTypes::Comma {
+            let mut second = state.lines.len();
+
+            token = lex.next();
+            if token == TokenTypes::Number {
+                second = lex.num_data;
+                token = lex.next();
+            }
+
+            if token != TokenTypes::Word {
+                println!("?");
+                return;
+            }
+
+            let c = lex.str_data.as_str();
+
+            match c {
+                "l" => {
+                    for line in &state.lines[0.. second] {
+                        println!("{}$", line);
+                    }
+                },
+                _ => {
+                    println!("?");
+                }
+            }
+        }
+
+        // Full range (eg: 1,3l)
+        else if token == TokenTypes::Number {
+            let first = lex.num_data;
+            token = lex.next();
+
+            if token != TokenTypes::Comma {
+                println!("?");
+                return;
+            }
+
+            token = lex.next();
+            if token != TokenTypes::Number{
+                println!("?");
+                return;
+            }
+
+            let second = lex.num_data;
+
+            token = lex.next();
+            if token != TokenTypes::Word {
+                println!("?");
+                return;
+            }
+
+            let c = lex.str_data.as_str();
+
+            match c {
+                "l" => {
+                    for line in &state.lines[first-1.. second] {
+                        println!("{}$", line);
+                    }
+                },
+                _ => {
+                    println!("?");
+                }
+            }
+        }
+
+        token = lex.next();
     }
 }
 
