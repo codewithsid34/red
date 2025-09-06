@@ -4,14 +4,14 @@ pub enum TokenTypes {
     Word,
     Number,
     Comma,
-    Slash
+    Slash,
 }
 
 pub struct Lexer {
     code: String,
     position: usize,
     pub str_data: String,
-    pub num_data: usize
+    pub num_data: usize,
 }
 
 impl Lexer {
@@ -20,7 +20,7 @@ impl Lexer {
             code: c.to_string(),
             position: 0,
             str_data: String::new(),
-            num_data: 0
+            num_data: 0,
         }
     }
 
@@ -36,12 +36,10 @@ impl Lexer {
             if c == ',' {
                 self.position += 1;
                 return TokenTypes::Comma;
-            }
-            else if c == '/' {
+            } else if c == '/' {
                 self.position += 1;
                 return TokenTypes::Slash;
-            }
-            else if c.is_ascii_digit() {
+            } else if c.is_ascii_digit() {
                 self.position += 1;
                 self.num_data = c as usize - '0' as usize;
 

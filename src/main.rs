@@ -1,24 +1,18 @@
 mod lexer;
 
-use std::io::{
-    stdin,
-    BufReader,
-    BufRead,
-    Result,
-    Write
-};
 use std::fs::File;
+use std::io::{BufRead, BufReader, Result, Write, stdin};
 
 use lexer::*;
 
 const WRITE_MODE: u8 = 1 << 0;
 
 struct State {
-    file_path: String,
+    file_path: Option<String>,
     bytes: usize,
     lines: Vec<String>,
     line: usize,
-    flags: u8
+    flags: u8,
 }
 
 fn parse_cmd(state: &mut State, cmd: &str) {
@@ -43,33 +37,36 @@ fn parse_cmd(state: &mut State, cmd: &str) {
             match cmd {
                 "a" => {
                     state.flags |= WRITE_MODE;
-                },
+                }
                 "w" => {
-                    let mut file = match File::create(state.file_path.as_str()) {
-                        Ok(f) => f,
-                        Err(_e) => {
-                            println!("?");
-                            return;
-                        }
-                    };
+                    if let Some(fp) = &state.file_path {
+                        let mut file = match File::create(fp.as_str()) {
+                            Ok(f) => f,
+                            Err(_e) => {
+                                println!("?");
+                                return;
+                            }
+                        };
 
-                    for line in &state.lines {
-                        if let Err(_e) = file.write(format!("{}\n", line).as_bytes()) {
-                            println!("?");
-                            return;
+                        for line in &state.lines {
+                            if let Err(_e) = file.write(format!("{}\n", line).as_bytes()) {
+                                println!("?");
+                                return;
+                            }
                         }
+                        println!("{}", state.bytes);
+                    } else {
+                        println!("?");
                     }
-                    println!("{}", state.bytes);
-                },
+                }
                 "l" => {
                     println!("{}$", state.lines[state.line]);
-                },
+                }
                 _ => {
                     println!("?");
                 }
             }
         }
-
         // Half range (eg: ,l ,2l)
         else if token == TokenTypes::Comma {
             let mut second = state.lines.len();
@@ -89,16 +86,15 @@ fn parse_cmd(state: &mut State, cmd: &str) {
 
             match c {
                 "l" => {
-                    for line in &state.lines[0.. second] {
+                    for line in &state.lines[0..second] {
                         println!("{}$", line);
                     }
-                },
+                }
                 _ => {
                     println!("?");
                 }
             }
         }
-
         // Full range (eg: 1,3l)
         else if token == TokenTypes::Number {
             let first = lex.num_data;
@@ -110,7 +106,7 @@ fn parse_cmd(state: &mut State, cmd: &str) {
             }
 
             token = lex.next();
-            if token != TokenTypes::Number{
+            if token != TokenTypes::Number {
                 println!("?");
                 return;
             }
@@ -127,10 +123,10 @@ fn parse_cmd(state: &mut State, cmd: &str) {
 
             match c {
                 "l" => {
-                    for line in &state.lines[first-1.. second] {
+                    for line in &state.lines[first - 1..second] {
                         println!("{}$", line);
                     }
-                },
+                }
                 _ => {
                     println!("?");
                 }
@@ -143,28 +139,26 @@ fn parse_cmd(state: &mut State, cmd: &str) {
 
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage: {} <file>", args[0]);
-        eprintln!("Error: File missing.");
-        std::process::exit(1)
-    }
 
     let mut state = State {
-        file_path: args[1].clone(),
-        lines:     Vec::new(),
-        line :     0,
-        bytes:     0,
-        flags:     0
+        file_path: None,
+        lines: Vec::new(),
+        line: 0,
+        bytes: 0,
+        flags: 0,
     };
     let mut cmd = String::new();
 
-    let file = File::open(state.file_path.as_str())?;
-    let reader = BufReader::new(file);
+    if args.len() > 1 {
+        state.file_path = Some(args[1].clone());
+        let file = File::open(args[1].as_str())?;
+        let reader = BufReader::new(file);
 
-    for line in reader.lines() {
-        let l = line?;
-        state.lines.push(l.as_str().to_string());
-        state.bytes += l.len() + 1;
+        for line in reader.lines() {
+            let l = line?;
+            state.lines.push(l.as_str().to_string());
+            state.bytes += l.len() + 1;
+        }
     }
 
     println!("{}", state.bytes);
