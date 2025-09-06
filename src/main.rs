@@ -101,7 +101,12 @@ fn parse_cmd(state: &mut State, cmd: &str) {
             token = lex.next();
 
             if token != TokenTypes::Comma {
-                println!("?");
+                // Jump to line number
+                if first <= state.lines.len() {
+                    state.line = first-1;
+                } else {
+                    println!("?");
+                }
                 return;
             }
 
