@@ -1,5 +1,7 @@
 mod lexer;
 
+use regex::Regex;
+
 use std::fs::File;
 use std::io::{BufRead, BufReader, Result, Write, stdin};
 
@@ -22,8 +24,10 @@ fn parse_cmd(state: &mut State, cmd: &str) {
             state.line -= 1;
             return;
         }
+
         state.lines.insert(state.line, cmd.to_string());
         state.line += 1;
+
         state.bytes += cmd.len() + 1;
         return;
     }
@@ -32,11 +36,103 @@ fn parse_cmd(state: &mut State, cmd: &str) {
     let mut token = lex.next();
 
     while token != TokenTypes::End {
+        // Search
+        if token == TokenTypes::Slash {
+            token = lex.next();
+            if token != TokenTypes::Word {
+                println!("?");
+                return;
+            }
+
+            let query = lex.str_data.clone();
+            let exp = format!(".*{}.*", query.as_str());
+
+            let re = Regex::new(exp.as_str()).unwrap();
+            let mut found = false;
+
+            for i in state.line + 1..=state.lines.len() - 1 {
+                if re.is_match(state.lines[i].as_str()) {
+                    state.line = i;
+                    found = true;
+                    break;
+                }
+            }
+
+            if !found {
+                for i in 0..=state.line {
+                    if re.is_match(state.lines[i].as_str()) {
+                        state.line = i;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if !found {
+                println!("?");
+            }
+        }
         // Direct command (eg: l)
-        if token == TokenTypes::Word {
-            match cmd {
+        else if token == TokenTypes::Word {
+            let c = lex.str_data.clone();
+            match c.as_str() {
                 "a" => {
                     state.flags |= WRITE_MODE;
+                    if state.line < state.lines.len() {
+                        state.line += 1;
+                    }
+                }
+                "s" => {
+                    println!("subs");
+                    token = lex.next();
+
+                    if token != TokenTypes::Slash {
+                        println!("? First slash");
+                        return;
+                    }
+
+                    token = lex.next();
+                    if token != TokenTypes::Word {
+                        println!("? Word");
+                        return;
+                    }
+
+                    let rexp = lex.str_data.clone();
+
+                    println!("rexp = {}", rexp);
+
+                    token = lex.next();
+                    if token != TokenTypes::Slash {
+                        println!("? Second slash");
+                        return;
+                    }
+
+                    token = lex.next();
+                    if token != TokenTypes::Word {
+                        println!("? Word2");
+                        return;
+                    }
+
+                    let value = lex.str_data.clone();
+
+                    println!("value = {}", value);
+
+                    let exp = format!(".*{}.*", rexp);
+                    let re = Regex::new(exp.as_str()).unwrap();
+                    let mut found = false;
+
+                    for i in 0..=state.lines.len() {
+                        if re.is_match(state.lines[i].as_str()) {
+                            println!("{}", state.lines[i]);
+                            state.lines[i] = re.replace(exp.as_str(), value.as_str()).to_string();
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if !found {
+                        println!("? Not found");
+                    }
                 }
                 "w" => {
                     if let Some(fp) = &state.file_path {
@@ -103,7 +199,7 @@ fn parse_cmd(state: &mut State, cmd: &str) {
             if token != TokenTypes::Comma {
                 // Jump to line number
                 if first <= state.lines.len() {
-                    state.line = first-1;
+                    state.line = first - 1;
                 } else {
                     println!("?");
                 }

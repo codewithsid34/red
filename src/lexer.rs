@@ -64,7 +64,7 @@ impl Lexer {
                     let Some(n) = self.code.chars().nth(self.position) else {
                         break;
                     };
-                    if !n.is_ascii_digit() {
+                    if !n.is_ascii_digit() && n != ',' && n != '/' {
                         self.str_data.push(n);
                         self.position += 1;
                     } else {
